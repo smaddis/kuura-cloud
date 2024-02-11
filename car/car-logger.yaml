@@ -1,0 +1,6 @@
+MQTT_URL: ""
+MQTT_PORT: 443
+CLIENT_ID: ""
+CLIENT_USERNAME: ""
+CLIENT_PASSWORD: ""
+CERT_PATH: "../infra/secrets"
