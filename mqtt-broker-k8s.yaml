@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-broker
+  labels:
+    name: mqtt-broker
+    app: eclipse-mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eclipse-mosquitto
+      name: mqtt-broker
+  template:
+    metadata:
+      labels:
+        app: eclipse-mosquitto
+        name: mqtt-broker
+    spec:
+      containers:
+      - name: mqtt-broker-container
+        image: eclipse-mosquitto:latest
+        ports:
+          - containerPort: 8883
+          - containerPort: 1883
+        volumeMounts:
+        - mountPath: /mosquitto/config
+          name: mqtt-volume
+        - mountPath: /certs
+          name: cert-volume
+          #readOnly: true
+        - mountPath: /certs/client-ca
+          name: client-ca-volume
+      volumes:
+        - name: mqtt-volume
+          configMap:
+            name: mqtt-config
+        - name: cert-volume
+          secret:
+            secretName: cert-secrets
+        - name: client-ca-volume
+          secret:
+            secretName: client-ca-secrets
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mqtt-config
+data:
+  mosquitto.conf: |-
+    # General
+    allow_anonymous false
+    per_listener_settings false
+    
+    # Certificates
+    listener 8883
+    cafile /certs/ca.cert.pem
+    certfile /certs/server.cert.pem
+    keyfile /certs/server.key.pem
+    #capath /certs/client-ca
+    #require_certificate true
+    #use_identity_as_username true
+    # Authentication
+    password_file /certs/pw.txt
+
+    listener 1883
+    
+    # Logging
+    connection_messages true
+    log_timestamp true
+     
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cert-secrets
+type: opaque
+data:
+  ca.cert.pem: |-
+  server.cert.pem : |-
+  server.key.pem: |-
+  pw.txt: |-
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: client-ca-secrets
+type: opaque
+data:
+  client-ca.cert.pem: |-
+
+---
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mqtt-route
+spec:
+  host: ""
+  port:
+    port: 8883
+    targetPort: 8883
+  to:
+    kind: Service
+    name: mqtt-service
+    selector:
+      app: eclipse-mosquitto
+  tls:
+    termination: passthrough
+status:
+  ingress: []
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt-service
+spec:
+  selector:
+    app: eclipse-mosquitto
+  ports:
+    - name: tls
+      port: 8883
+      targetPort: 8883
+    - name: non-tls
+      port: 1883
+      targetPort: 1883
+
